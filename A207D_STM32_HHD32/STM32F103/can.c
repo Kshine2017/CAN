@@ -271,143 +271,16 @@ void CAN1_UnframeAndSend(uint32_t ID,uint8_t DLC,uint32_t IDE,uint8_t* Data)
 	  uint8_t CC[8]={0};
 		uint8_t len=8;
 		uint32_t sendID = MUBAN_ID1;
-		if(ID == PC_ID){
-		
-		switch(cmd)
+		if(ID == PC_ID)
 		{
-
-				/*
-				将CAN盒依次接在测试工装CAN0和1的位置
-				
-				选择模块自检，等待综合控制模块上报所有模块工作正常
-				将CAN盒接在测试工装CAN1的位置，切换槽位识别号GA0~3,GAP，改变高低电平，重复以上步骤,观察能否正确上报状态
-				正常情况下能够自检正常，错误情况下能够上报自检错误，同时则判定综合控制模块自检功能合格。
-				板上工作电压、温度状态能正确上报则判定综合控制模块上报温度电压状态合格。
-				槽位识别能正确上报则判定综合控制模块槽位识别号合格。
-				*/
-				case CMD_START_CAN://can槽位识别 测试结果上报
-				{
-				  len = 2;
-					CC[0]=0x8D;
-					CC[1]=GetGA();
-				}
-				break;
-				
-				/*
-				(1)	将综合控制模块定义成LVTTL数据发送，测试工装定义成LVTTL数据接收，观察数据高低翻转收发是否一致
-				(2) 将综合控制模块定义成LVTTL数据接收，测试工装定义成LVTTL数据发送，观察数据高低翻转收发是否一致
-				*/
-				case CMD_START_LVTTL://LVTTL测试结果上报
-				{
-					if(DLC!=2 || Data[1]!=CMD_MUBAN_SEND)return;//必须是母板发送
-					SetFpgaReg(0xA1,MUBAN_REG_SEND);//自己配置为发送
-					sendID = MUBAN_ID2;//通知子板配置为接收
-					len = 2;
-					CC[0]=CMD_START_LVTTL;
-					CC[1]=Data[1];
-					
-				}
-				break;
-				case CMD_START_TTL://TTL测试结果上报
-				{
-					if(DLC!=2 || Data[1]!=CMD_MUBAN_SEND)return;//必须是母板发送
-					SetFpgaReg(0xA2,MUBAN_REG_SEND);//设置为发送
-					sendID = MUBAN_ID2;//通知子板配置为接收
-					len = 2;
-					CC[0]=CMD_START_TTL;
-					CC[1]=Data[1];
-				}
-				
-				break;
-
-				
-				/*
-				控制MLVDS驱动器收发方向使能脚，将综合控制模块定义成MLVDS数据发送，产生依次递增的数据，数据速率为200Mbps，测试工装定义成MLVDS数据接收，观察数据收发是否一致
-				控制MLVDS驱动器收发方向使能脚，将综合控制模块定义成MLVDS数据接收，测试工装定义成MLVDS数据发送，产生依次递增的数据，数据速率为200Mbps，改变MLVDS驱动器中的FSEN脚，看数据收发是否一致
-				TypeI与TypeII工作方式是否可控
-				
-				正常情况下综合控制模块和测试工装FPGA收发数据一致，则判定11路MLVDS输出信号收发正常，TypeI与TypeII工作方式可控
-				*/
-				case CMD_START_MLVDS://MLVDS测试结果上报
-				{
-					if(DLC!=3 || Data[1]!=CMD_MUBAN_SEND)return;//必须是母板发送
-					
-					//设置模式：type1或者type2
-					g_MI.typeflag = Data[2];
-		
-					if(g_MI.typeflag==1)
-					{
-						SetFpgaReg(0xA4,MUBAN_REG_TYPE1);//type1
-					} 
-					else if(g_MI.typeflag==2)
-					{
-						SetFpgaReg(0xA4,MUBAN_REG_TYPE2);//type2
-					}
-					rt_thread_mdelay(1);
-					
-					//设置方向：母板发送
-					SetFpgaReg(0xA3,MUBAN_REG_SEND);//自己配置为发送
-					
-					//通知子板配置为接收
-					sendID = MUBAN_ID2;
-					len =3;
-					CC[0]=CMD_START_MLVDS;
-					CC[1]=Data[1];
-					CC[2]=Data[2];//type测试
-					//g_MI.typeflag = Data[2];
-				}
-				break;
-
-				case CMD_START_RESET:
-					SetFpgaReg(0xA5,0x0001);
-					rt_thread_mdelay(1);
-					SetFpgaReg(0xA5,0x0000);
-				return;//不需要回报
-				
-				/*
-				收到上位机测试LVDS，母板先自测，并向子板报告自己的结果
-				*/
-				case CMD_START_LVDS:
-				{
-				  g_MI.spi.a.LVDS =GetFpgaReg(0x18);
-					len =2;
-				  sendID = MUBAN_ID2;
-					CC[0]=CMD_START_LVDS;
-					if(g_MI.son100MLock==0 || g_MI.spi.a.LVDS)CC[1]=0x02;//故障
-					else CC[1]=0x01;//正常
-				}
-				break;
-								/*
-				收到上位机测试RS422，母板先自测，并向子板报告自己的结果
-				*/
-				case CMD_START_RS422:
-				{
-				  g_MI.spi.a.RS422 =GetFpgaReg(0x1b);
-					len =2;
-				  sendID = MUBAN_ID2;
-					CC[0]=CMD_START_RS422;
-					if(g_MI.son100MLock==0 || g_MI.spi.a.RS422)CC[1]=0x02;//故障
-					else CC[1]=0x01;//正常
-				}
-				break;
-				/*
-				收到上位机测试gtx，母板先自测，并向子板报告自己的结果
-				*/
-				case CMD_START_GTX:
-				{
-				  g_MI.spi.a.GTX =GetFpgaReg(0x1d);
-					len =2;
-				  sendID = MUBAN_ID2;
-					CC[0]=CMD_START_GTX;
-					if(g_MI.son100MLock==0 || g_MI.spi.a.GTX)CC[1]=0x02;//故障
-					else CC[1]=0x01;//正常
-				}
+			switch(cmd)
+			{
+                case ...:
 				break;
 
 				default:
-					return;
-		}
-		
+				return;
+			}
 		}else if(ID == ZIBAN_ID1)
 		{
 				if(cmd == CMD_STATE_4)
@@ -422,80 +295,7 @@ void CAN1_UnframeAndSend(uint32_t ID,uint8_t DLC,uint32_t IDE,uint8_t* Data)
 		{
 			
 			switch(cmd){
-				case CMD_START_LVTTL://母板作为接收
-				{
-					if(DLC!=2 || Data[1]!=CMD_MUBAN_RECV)return;
-					
-				  sendID = MUBAN_ID1;
-					SetFpgaReg(0xA1,MUBAN_REG_RECV);
-					
-					rt_thread_mdelay(1);
-					
-					g_MI.spi.a.LVTTL =GetFpgaReg(0x16);
-					len =3;
-					CC[0]=CMD_RESULT_LVTTL;
-					CC[1]=0x02;//母板作为接收
-					if(g_MI.son100MLock==0 || g_MI.spi.a.LVTTL)CC[2]=0x02;//故障
-					else CC[2]=0x01;//正常
-					
-				}
-				break;
-				
-				case CMD_START_TTL://母板作为接收
-				{
-					if(DLC!=2 || Data[1]!=CMD_MUBAN_RECV)return;
-					
-					sendID = MUBAN_ID1;
-					SetFpgaReg(0xA2,MUBAN_REG_RECV);
-					
-					rt_thread_mdelay(1);
-					
-					g_MI.spi.a.TTL =GetFpgaReg(0x17);
-					len =3;
-					CC[0]=CMD_RESULT_TTL;
-					CC[1]=0x02;//母板作为接收
-				  if(g_MI.son100MLock==0 || g_MI.spi.a.TTL)CC[2]=0x02;//故障
-					else CC[2]=0x01;//正常
-				}
-					
-				break;
-				
-				case CMD_START_MLVDS://母板作为接收
-				{
-					if(DLC!=3 || Data[1]!=CMD_MUBAN_RECV)return;
-
-					sendID = MUBAN_ID1;
-					
-					//设置模式：type1或者type2
-					g_MI.typeflag = Data[2];
-		
-					if(g_MI.typeflag==1)
-					{
-						SetFpgaReg(0xA4,MUBAN_REG_TYPE1);//type1
-					} 
-					else if(g_MI.typeflag==2)
-					{
-						SetFpgaReg(0xA4,MUBAN_REG_TYPE2);//type2
-					}
-					rt_thread_mdelay(1);
-					
-					//设置方向：母板接收
-					SetFpgaReg(0xA3,MUBAN_REG_RECV);
-					rt_thread_mdelay(1);
-					
-					//读取数据
-					g_MI.spi.a.MLVDS =GetFpgaReg(0x19);
-					
-					len =4;
-					CC[0]=CMD_RESULT_MLVDS;
-					CC[1]=CMD_MUBAN_RECV;//母板作为接收
-					CC[2]=g_MI.typeflag;//type
-					
-					if(g_MI.son100MLock==0 || g_MI.spi.a.MLVDS)CC[3]=0x02;//故障
-					else CC[3]=0x01;//正常
-					
-					g_MI.typeflag =0;
-				}
+				case ...://母板作为接收
 				
 				break;
 	

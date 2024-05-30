@@ -4,5 +4,5 @@
 - 子板，使用国产单片机HHD32
 
 # 2. 子板与母板的连接示意图
-![image text](https://raw.githubusercontent.com/Kshine2017/CAN/master/HHD32F107VCH_CAN_A207D/PIC/zibanConnectMuBan.png "zibanConnectMuBan")
+![image text](https://raw.githubusercontent.com/Kshine2017/CAN/master/A207D_STM32_HHD32/PIC/zibanConnectMuBan.png "zibanConnectMuBan")
 
